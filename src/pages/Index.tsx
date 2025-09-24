@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, BarChart3, Info, Lightbulb, Download, Folder, Plug, DollarSign } from 'lucide-react';
+import { Settings, BarChart3, Info, Lightbulb, Download, Folder, Plug, DollarSign, FileText } from 'lucide-react';
 import CustomizationPanel from '../components/CustomizationPanel';
 import LightingSchedule from '../components/LightingSchedule';
 import ScheduleVisualizer from '../components/ScheduleVisualizer';
@@ -11,6 +11,7 @@ import ExportImportPanel from '../components/ExportImportPanel';
 import ProjectManager from '../components/ProjectManager';
 import ProfessionalIntegrations from '../components/ProfessionalIntegrations';
 import ROICalculator from '../components/ROICalculator';
+import FinalReport from '../components/FinalReport';
 import { standardSchedules, LightingSchedule as LightingScheduleType } from '../utils/lightingStandards';
 
 const Index = () => {
@@ -42,7 +43,7 @@ const Index = () => {
 
         <Tabs defaultValue="settings" className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-8">
+            <TabsList className="grid w-full grid-cols-9">
               <TabsTrigger value="settings" className="flex items-center">
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
@@ -74,6 +75,10 @@ const Index = () => {
               <TabsTrigger value="research" className="flex items-center">
                 <Info className="h-4 w-4 mr-2" />
                 Research
+              </TabsTrigger>
+              <TabsTrigger value="report" className="flex items-center">
+                <FileText className="h-4 w-4 mr-2" />
+                Report
               </TabsTrigger>
             </TabsList>
 
@@ -117,6 +122,10 @@ const Index = () => {
 
             <TabsContent value="research" className="space-y-4">
               <ResearchInfo currentSchedule={activeSchedule} />
+            </TabsContent>
+
+            <TabsContent value="report" className="space-y-4">
+              <FinalReport currentSchedule={activeSchedule} />
             </TabsContent>
           </Card>
         </Tabs>
