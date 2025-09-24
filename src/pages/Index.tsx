@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, BarChart3, Info, Lightbulb, Download, Folder, Plug } from 'lucide-react';
+import { Settings, BarChart3, Info, Lightbulb, Download, Folder, Plug, DollarSign } from 'lucide-react';
 import CustomizationPanel from '../components/CustomizationPanel';
 import LightingSchedule from '../components/LightingSchedule';
 import ScheduleVisualizer from '../components/ScheduleVisualizer';
@@ -10,6 +10,7 @@ import ResearchInfo from '../components/ResearchInfo';
 import ExportImportPanel from '../components/ExportImportPanel';
 import ProjectManager from '../components/ProjectManager';
 import ProfessionalIntegrations from '../components/ProfessionalIntegrations';
+import ROICalculator from '../components/ROICalculator';
 import { standardSchedules, LightingSchedule as LightingScheduleType } from '../utils/lightingStandards';
 
 const Index = () => {
@@ -41,7 +42,7 @@ const Index = () => {
 
         <Tabs defaultValue="settings" className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="settings" className="flex items-center">
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
@@ -65,6 +66,10 @@ const Index = () => {
               <TabsTrigger value="integrations" className="flex items-center">
                 <Plug className="h-4 w-4 mr-2" />
                 Integrations
+              </TabsTrigger>
+              <TabsTrigger value="roi" className="flex items-center">
+                <DollarSign className="h-4 w-4 mr-2" />
+                ROI
               </TabsTrigger>
               <TabsTrigger value="research" className="flex items-center">
                 <Info className="h-4 w-4 mr-2" />
@@ -104,6 +109,10 @@ const Index = () => {
 
             <TabsContent value="integrations" className="space-y-4">
               <ProfessionalIntegrations currentSchedule={activeSchedule} />
+            </TabsContent>
+
+            <TabsContent value="roi" className="space-y-4">
+              <ROICalculator />
             </TabsContent>
 
             <TabsContent value="research" className="space-y-4">
