@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, BarChart3, Info, Lightbulb, Download, Folder, Plug, DollarSign, FileText } from 'lucide-react';
+import { Settings, BarChart3, Info, Lightbulb, Download, Folder, Plug, DollarSign, FileText, Sparkles } from 'lucide-react';
 import CustomizationPanel from '../components/CustomizationPanel';
 import LightingSchedule from '../components/LightingSchedule';
 import ScheduleVisualizer from '../components/ScheduleVisualizer';
@@ -12,6 +12,7 @@ import ProjectManager from '../components/ProjectManager';
 import ProfessionalIntegrations from '../components/ProfessionalIntegrations';
 import ROICalculator from '../components/ROICalculator';
 import FinalReport from '../components/FinalReport';
+import LightSourceComparison from '../components/LightSourceComparison';
 import { standardSchedules, LightingSchedule as LightingScheduleType } from '../utils/lightingStandards';
 
 const Index = () => {
@@ -44,7 +45,7 @@ const Index = () => {
 
         <Tabs defaultValue="settings" className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-9">
+            <TabsList className="grid w-full grid-cols-10">
               <TabsTrigger value="settings" className="flex items-center">
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
@@ -72,6 +73,10 @@ const Index = () => {
               <TabsTrigger value="roi" className="flex items-center">
                 <DollarSign className="h-4 w-4 mr-2" />
                 ROI
+              </TabsTrigger>
+              <TabsTrigger value="compare" className="flex items-center">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Compare
               </TabsTrigger>
               <TabsTrigger value="research" className="flex items-center">
                 <Info className="h-4 w-4 mr-2" />
@@ -119,6 +124,10 @@ const Index = () => {
 
             <TabsContent value="roi" className="space-y-4">
               <ROICalculator onROICalculated={setRoiData} />
+            </TabsContent>
+
+            <TabsContent value="compare" className="space-y-4">
+              <LightSourceComparison />
             </TabsContent>
 
             <TabsContent value="research" className="space-y-4">
