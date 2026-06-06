@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "earthlight",
+  "project_id": "503b8a49-8376-44cf-87b2-25f347213293"
+}
