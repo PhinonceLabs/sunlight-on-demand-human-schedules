@@ -21,7 +21,10 @@ import type { ActionResult } from "@/features/projects/actions";
 
 const quickSaveActionSchema = z.object({
   scenarioId: z.string().uuid(),
-  name: z.string().trim().min(1).max(120).optional(),
+  name: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().trim().min(1).max(120).optional(),
+  ),
   note: z.string().trim().max(500).optional(),
 });
 
@@ -133,14 +136,18 @@ export async function createScenarioFromPreset(input: {
     return { ok: false, message: "Preset schedule not found." };
   }
 
-  const schedule = lightingScheduleSchema.parse(preset);
+  const parsedSchedule = lightingScheduleSchema.safeParse(preset);
+  if (!parsedSchedule.success) {
+    return validationError("Preset schedule is invalid.", parsedSchedule.error);
+  }
+
   return createScenario({
     projectId: input.projectId,
     name: input.name?.trim() || preset.name,
     description: input.description?.trim() || preset.description,
     source: "standard_preset",
     presetName: preset.name,
-    schedule,
+    schedule: parsedSchedule.data,
     scheduleInputs: { presetName: preset.name },
   });
 }
@@ -180,14 +187,17 @@ export async function createScenarioFromCustomInputs(input: {
     input.description?.trim() ||
     `Wake ${parsedInputs.data.wakeTime}, sleep ${parsedInputs.data.sleepTime}, max ${parsedInputs.data.maxIntensity}%`;
   const namedSchedule = createNamedSchedule(input.name?.trim() || "Custom Schedule", description, generatedPoints);
-  const schedule = lightingScheduleSchema.parse(namedSchedule);
+  const parsedSchedule = lightingScheduleSchema.safeParse(namedSchedule);
+  if (!parsedSchedule.success) {
+    return validationError("Generated custom schedule is invalid.", parsedSchedule.error);
+  }
 
   return createScenario({
     projectId: input.projectId,
     name: namedSchedule.name,
     description: namedSchedule.description,
     source: "custom",
-    schedule,
+    schedule: parsedSchedule.data,
     scheduleInputs: parsedInputs.data,
   });
 }
@@ -209,11 +219,14 @@ export async function importScenarioFromJson(input: {
     return validationError("Imported schedule does not match the Earthlight schedule schema.", parsedSchedule.error);
   }
 
-  const inputMetadata = importedScheduleInputSchema.parse({
+  const inputMetadata = importedScheduleInputSchema.safeParse({
     importFormat: "json",
     importedAt: new Date().toISOString(),
     sourceName: parsedSchedule.data.name,
   });
+  if (!inputMetadata.success) {
+    return validationError("Imported schedule metadata is invalid.", inputMetadata.error);
+  }
 
   return createScenario({
     projectId: input.projectId,
@@ -221,7 +234,7 @@ export async function importScenarioFromJson(input: {
     description: parsedSchedule.data.description,
     source: "imported",
     schedule: parsedSchedule.data,
-    scheduleInputs: inputMetadata,
+    scheduleInputs: inputMetadata.data,
   });
 }
 
@@ -241,10 +254,13 @@ export async function quickSaveScenario(input: unknown): Promise<ActionResult<{ 
     return { ok: false, message: "Source scenario schedule is invalid and cannot be quick-saved." };
   }
 
-  const quickSaveInputs = quickSaveScheduleInputSchema.parse({
+  const quickSaveInputs = quickSaveScheduleInputSchema.safeParse({
     note: parsedInput.data.note,
     savedFrom: "workspace",
   });
+  if (!quickSaveInputs.success) {
+    return validationError("Quick-save metadata is invalid.", quickSaveInputs.error);
+  }
 
   const result = await createScenario({
     projectId: sourceScenario.projectId,
@@ -253,7 +269,7 @@ export async function quickSaveScenario(input: unknown): Promise<ActionResult<{ 
     source: "quick_save",
     presetName: sourceScenario.presetName ?? undefined,
     schedule: parsedSchedule.data,
-    scheduleInputs: quickSaveInputs,
+    scheduleInputs: quickSaveInputs.data,
   });
 
   if (result.ok === false) {

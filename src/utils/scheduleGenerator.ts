@@ -10,6 +10,25 @@ export interface SunTimesData {
   location: string;
 }
 
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_DAY = HOURS_PER_DAY * 60;
+const DAY_START_POINT: TimeIntensityPair = { time: 0, intensity: 5, temperature: 2200 };
+const DAY_END_POINT: TimeIntensityPair = { time: HOURS_PER_DAY, intensity: 5, temperature: 2200 };
+
+const clampHour = (value: number): number => Math.min(HOURS_PER_DAY, Math.max(0, value));
+
+const normalizeGeneratedSchedule = (points: TimeIntensityPair[]): TimeIntensityPair[] => {
+  const middlePoints = points
+    .filter((point) => Number.isFinite(point.time))
+    .map((point) => ({ ...point, time: clampHour(point.time) }))
+    // Preserve canonical day boundaries so clamped sun-time points cannot replace them.
+    .filter((point) => point.time !== DAY_START_POINT.time && point.time !== DAY_END_POINT.time)
+    .sort((a, b) => a.time - b.time)
+    .filter((point, index, self) => index === 0 || point.time !== self[index - 1].time);
+
+  return [{ ...DAY_START_POINT }, ...middlePoints, { ...DAY_END_POINT }];
+};
+
 // Helper function to create a custom schedule based on wake and sleep times
 export const generateCustomSchedule = (
   wakeTime: number,  // 0-24 hour
@@ -43,14 +62,14 @@ export const generateCustomSchedule = (
       adjustedSleepTime = Math.max(adjustedSleepTime, sunsetHour + 1);
     }
   }
+
+  adjustedWakeTime = clampHour(adjustedWakeTime);
+  adjustedSleepTime = clampHour(adjustedSleepTime);
   
   const customSchedule: TimeIntensityPair[] = [];
   
   // Add midnight starting point
-  customSchedule.push({ time: 0, intensity: 5, temperature: 2200 });
-  
-  // Adjust schedule based on wake time difference
-  const wakeDiff = adjustedWakeTime - defaultWake;
+  customSchedule.push({ ...DAY_START_POINT });
   
   // Find the base schedule points that occur during active hours
   const activeHoursPoints = baseScheduleData.schedule.filter(
@@ -128,18 +147,10 @@ export const generateCustomSchedule = (
     temperature: 2200 
   });
   
-  customSchedule.push({ 
-    time: 24, 
-    intensity: 5, 
-    temperature: 2200 
-  });
+  customSchedule.push({ ...DAY_END_POINT });
   
-  // Sort by time and remove any duplicates
-  return customSchedule
-    .sort((a, b) => a.time - b.time)
-    .filter((point, index, self) => 
-      index === 0 || point.time !== self[index - 1].time
-    );
+  // Sort, clamp, and dedupe so generated schedules always satisfy persisted schema constraints.
+  return normalizeGeneratedSchedule(customSchedule);
 };
 
 // Get current recommended light settings based on the time
@@ -262,8 +273,11 @@ export const fetchSunTimes = async (
 
 // Format the time for display
 export const formatTime = (hour: number): string => {
-  const h = Math.floor(hour);
-  const m = Math.round((hour - h) * 60);
+  const safeHour = Number.isFinite(hour) ? hour : 0;
+  const totalMinutes = Math.round(safeHour * 60);
+  const normalizedMinutes = ((totalMinutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const h = Math.floor(normalizedMinutes / 60);
+  const m = normalizedMinutes % 60;
   const period = h >= 12 ? 'PM' : 'AM';
   const displayHour = h % 12 === 0 ? 12 : h % 12;
   return `${displayHour}:${m.toString().padStart(2, '0')} ${period}`;

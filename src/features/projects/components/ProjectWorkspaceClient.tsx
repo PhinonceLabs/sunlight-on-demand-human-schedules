@@ -177,10 +177,12 @@ export function ProjectWorkspaceClient({
       return;
     }
 
+    const normalizedQuickSaveName = quickSaveName.trim() || undefined;
+
     startTransition(async () => {
       const result = await quickSaveScenario({
         scenarioId: scenario.id,
-        name: quickSaveName,
+        name: normalizedQuickSaveName,
         note: "Saved from project workspace",
       });
       if (result.ok === false) {

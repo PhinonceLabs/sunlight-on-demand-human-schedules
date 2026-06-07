@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { getProjectForCurrentIdentity } from "@/features/projects/queries";
 import { ProjectWorkspaceClient } from "@/features/projects/components/ProjectWorkspaceClient";
 import { listRoiSnapshotsForScenario } from "@/features/roi/queries";
@@ -11,8 +12,19 @@ type ScenarioPageProps = {
   params: Promise<{ projectId: string; scenarioId: string }>;
 };
 
+const scenarioPageParamsSchema = z.object({
+  projectId: z.string().uuid(),
+  scenarioId: z.string().uuid(),
+});
+
 export default async function ScenarioPage({ params }: ScenarioPageProps) {
-  const { projectId, scenarioId } = await params;
+  const parsedParams = scenarioPageParamsSchema.safeParse(await params);
+
+  if (!parsedParams.success) {
+    notFound();
+  }
+
+  const { projectId, scenarioId } = parsedParams.data;
   const [project, scenario] = await Promise.all([
     getProjectForCurrentIdentity(projectId),
     getScenarioForProject(projectId, scenarioId),
