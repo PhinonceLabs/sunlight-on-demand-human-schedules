@@ -54,10 +54,14 @@ export default async function LandingPage() {
               <Link href="/sign-in">Sign in</Link>
             </Button>
             <Button asChild className="bg-earthlight-ink text-primary-foreground hover:bg-earthlight-ink-soft">
-              <Link href="/sign-up">
+              <a
+                href="https://calendar.app.google/QmgcNZHCumHQqew88"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Book a 20-Minute ROI Review
                 <ArrowUpRight className="ml-1.5 h-4 w-4" />
-              </Link>
+              </a>
             </Button>
           </nav>
         </div>
@@ -82,30 +86,6 @@ export default async function LandingPage() {
               Earthlight embeds Human-ROI modeling into your lighting workflow. Protect scope, reduce
               value-engineering losses, and align capital decisions with long-term operational performance.
             </p>
-
-            <div className="mt-10 flex flex-wrap items-center gap-3">
-              <Button
-                size="lg"
-                asChild
-                className="h-12 bg-earthlight-ink px-7 text-primary-foreground hover:bg-earthlight-ink-soft"
-              >
-                <Link href="/sign-up">
-                  Book a 20-Minute Human-ROI Review
-                  <ArrowUpRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="ghost"
-                asChild
-                className="h-12 text-earthlight-ink hover:bg-earthlight-paper-deep/60"
-              >
-                <Link href="/sign-in">
-                  I already have an account
-                  <ArrowUpRight className="ml-1.5 h-4 w-4 opacity-70" />
-                </Link>
-              </Button>
-            </div>
 
             <div className="mt-10 flex items-center gap-4 text-sm text-earthlight-slate">
               <div className="flex -space-x-2">
