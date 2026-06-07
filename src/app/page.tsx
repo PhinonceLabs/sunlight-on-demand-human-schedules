@@ -75,7 +75,7 @@ export default async function LandingPage() {
             <h1 className="font-display text-[clamp(2.5rem,6vw,4.75rem)] font-medium leading-[1.02] tracking-tight text-earthlight-ink">
               Saving lighting <span className="italic text-earthlight-ink-soft">from</span>
               <br />
-              misguided value <em className="not-italic text-sun-gradient">engineering</em>
+              <em className="not-italic text-sun-gradient">misguided value engineering</em>
               <span className="inline-block w-2 -translate-y-1 align-middle text-earthlight-sun">.</span>
             </h1>
             <p className="mt-8 max-w-xl text-lg leading-relaxed text-earthlight-slate">
