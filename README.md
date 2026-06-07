@@ -1,73 +1,71 @@
-# Welcome to your Lovable project
+# Earthlight
 
-## Project info
+Science-based circadian lighting schedules for architects and lighting professionals. Generates intensity and color-temperature curves across a 24-hour day, with ROI modeling and shareable report snapshots.
 
-**URL**: https://lovable.dev/projects/e9d549f3-abd2-4b0f-9a9d-b790b9886eb3
+## Stack
 
-## How can I edit this code?
+- **Next.js 16** App Router, React 18, TypeScript
+- **Clerk** for authentication (`@clerk/nextjs`)
+- **Drizzle ORM** on **Neon Postgres** (`@neondatabase/serverless`)
+- **Tailwind CSS** + **shadcn/ui** (Radix primitives)
+- Deployed on **Vercel**
 
-There are several ways of editing your application.
+## Getting started
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/e9d549f3-abd2-4b0f-9a9d-b790b9886eb3) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Requires Node.js 20+ and npm. Then:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+git clone https://github.com/PhinonceLabs/earthlight.git
+cd earthlight
+npm install
+cp .env.example .env.local   # then fill in the values below
+npm run db:migrate           # apply Drizzle migrations to your Neon DB
+npm run dev                  # http://localhost:3000
 ```
 
-**Edit a file directly in GitHub**
+### Environment variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Required for runtime:
 
-**Use GitHub Codespaces**
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk frontend key |
+| `CLERK_SECRET_KEY` | Clerk backend key |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/projects` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/projects` |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+`npm run db:generate` is the one script that works without `DATABASE_URL` — it uses a placeholder in `drizzle.config.ts` so migrations can be authored offline.
 
-## What technologies are used for this project?
+## Scripts
 
-This project is built with:
+```sh
+npm run dev          # next dev
+npm run build        # next build
+npm run start        # next start (after build)
+npm run lint         # eslint flat config
+npm run typecheck    # next typegen && tsc --noEmit
+npm run db:generate  # drizzle-kit generate
+npm run db:migrate   # drizzle-kit migrate (requires DATABASE_URL)
+npm run db:studio    # drizzle-kit studio  (requires DATABASE_URL)
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+There is no test runner. `lint` and `typecheck` are the only automated gates.
 
-## How can I deploy this project?
+## Project layout
 
-Simply open [Lovable](https://lovable.dev/projects/e9d549f3-abd2-4b0f-9a9d-b790b9886eb3) and click on Share -> Publish.
+- `src/app/` — App Router routes. Public landing at `/`; authenticated shell under `(app)/` for `/projects` and `/reports/[reportId]`; Clerk catch-all routes at `/sign-in` and `/sign-up`.
+- `src/proxy.ts` — Clerk auth gate (Next.js 16 replaces `middleware.ts` with `proxy.ts`).
+- `src/features/<name>/` — feature slices, each with `queries.ts` (server-only DTOs), `actions.ts` (server actions returning `ActionResult<T>`), and `components/` (client). Slices: `projects`, `scenarios`, `roi`, `reports`, `export`.
+- `src/server/` — `db/` (Drizzle schema + Neon driver), `auth/` (Clerk → app-user identity, project authorization), `validation/` (Zod), `lighting/` (server-side sun-time fetch), `domain/` (constants).
+- `src/domain/` — pure domain logic shared with the client (ROI calculator, validation shapes).
+- `src/utils/` — lighting standards and schedule generator (`generateCustomSchedule`, `getCurrentLightSettings`).
+- `src/components/ui/` — generated shadcn primitives (extend via props, do not edit in place).
 
-## Can I connect a custom domain to my Lovable project?
+See `CLAUDE.md` for architecture conventions, the server-action contract, and known gotchas.
 
-Yes, you can!
+## Deployment
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Deploys to Vercel from `main`. Set the environment variables above in the Vercel project settings; the build runs `next build`. Drizzle migrations are not run automatically — run `npm run db:migrate` against the production `DATABASE_URL` as part of release.
