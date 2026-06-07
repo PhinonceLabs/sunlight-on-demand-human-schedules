@@ -4,63 +4,93 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-"Earthlight" — a Vite + React + TypeScript single-page app that generates science-based circadian lighting schedules (intensity + color temperature over a 24-hour day) for architects and lighting professionals. The repo is a [Lovable](https://lovable.dev) project (project id `e9d549f3-abd2-4b0f-9a9d-b790b9886eb3`); changes pushed to the repo are reflected in Lovable and vice versa.
+"Earthlight" — a Next.js 16 App Router app (React 18, TypeScript, Tailwind/shadcn) that generates science-based circadian lighting schedules (intensity + color temperature over a 24-hour day) for architects and lighting professionals. Authenticated via Clerk; persisted in Neon Postgres via Drizzle ORM.
+
+The repo was rebuilt on Next.js from a Vite SPA POC in commit `f34650a Rebuild POC on Next.js with Clerk and Drizzle`. The Lovable project metadata (`project id e9d549f3-…`) and parts of the README still reference the old Vite stack — trust the code, not those.
 
 ## Commands
 
 ```bash
 npm i              # install
-npm run dev        # vite dev server on port 8080, host "::"
-npm run build      # production build
-npm run build:dev  # build in development mode (keeps dev tooling)
-npm run lint       # eslint over the repo (flat config in eslint.config.js)
-npm run preview    # serve the built bundle
+npm run dev        # next dev (default port 3000)
+npm run build      # next build
+npm run start      # next start (run after build)
+npm run lint       # eslint flat config (eslint.config.js)
+npm run typecheck  # next typegen && tsc --noEmit  — gate for TS errors
+npm run db:generate  # drizzle-kit generate  (no DB connection needed)
+npm run db:migrate   # drizzle-kit migrate    (requires DATABASE_URL)
+npm run db:studio    # drizzle-kit studio     (requires DATABASE_URL)
 ```
 
-There is no test runner configured. There is no typecheck script — TS errors surface through `vite build` or the editor.
+There is no test runner. `npm run lint` and `npm run typecheck` are the only automated gates.
+
+`DATABASE_URL` (Neon Postgres connection string) and Clerk env vars (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and the Clerk URL overrides) must be set for runtime. `drizzle-kit generate` is the one command that works without `DATABASE_URL` — it falls back to a placeholder in `drizzle.config.ts` so migrations can be authored offline.
 
 ## Architecture
 
-**Single-page app, no backend.** All state lives in the browser; the only network call is to `https://api.sunrise-sunset.org` (`fetchSunTimes` in `src/utils/scheduleGenerator.ts`).
+**Auth gate is `src/proxy.ts`, not `middleware.ts`.** Next.js 16 renamed Clerk middleware's host file to `proxy.ts`. It calls `clerkMiddleware` and forces auth on `/projects(.*)`, `/reports(.*)`, `/api(.*)`. The matcher also runs for `/__clerk/(.*)` so Clerk's frontend-API proxy keeps working. Do not reintroduce `middleware.ts`.
 
-**Routing.** `src/App.tsx` mounts a `BrowserRouter` with exactly two routes: `/` → `pages/Index.tsx`, `*` → `pages/NotFound.tsx`. The catch-all must stay last (commented in App.tsx).
+**Route layout.**
 
-**The whole UI is one page of tabs.** `pages/Index.tsx` is a `<Tabs>` with ~10 panels (Settings, Schedule, Visualizer, Projects, Export, Integrations, ROI, Compare, Research, Report), each rendering a single component from `src/components/`. The page holds three pieces of shared state and threads them into the panels:
+- `src/app/page.tsx` — public landing; redirects signed-in users to `/projects`.
+- `src/app/(app)/layout.tsx` — authenticated shell. Calls `auth.protect()` and renders the global header.
+- `src/app/(app)/projects/`, `src/app/(app)/reports/[reportId]/` — protected views.
+- `src/app/sign-in/[[...rest]]/`, `src/app/sign-up/[[...rest]]/` — Clerk catch-all routes.
+- `src/app/layout.tsx` wraps everything in `<ClerkProvider>`; `src/app/providers.tsx` is the client provider tree (`next-themes`, tooltip, two toasters).
 
-- `currentScheduleIndex` — index into `standardSchedules`
-- `customSchedule` — optional user-built schedule, wins over the preset when set
-- `roiData` — populated by `ROICalculator`, consumed by `FinalReport`
+**Feature slices live in `src/features/<name>/` and follow a strict three-file pattern:**
 
-`activeSchedule = customSchedule || standardSchedules[currentScheduleIndex]` is the value passed to every panel that needs the "currently displayed" schedule.
+- `queries.ts` — top of file is `import "server-only"`. Returns DTOs (string dates, plain objects), never raw Drizzle rows.
+- `actions.ts` — top of file is `"use server"`. Validates input with the matching Zod schema from `src/server/validation/`, calls `requireAppIdentity()`, performs the mutation, and calls `revalidatePath`. Returns a typed `ActionResult<T> = { ok: true; data: T } | { ok: false; message; fieldErrors? }`.
+- `components/` — `"use client"` components consuming the actions.
 
-**Domain model — the two files that matter.**
+Slices today: `projects`, `scenarios`, `roi`, `reports`, `export` (export is serializers only).
 
-- `src/utils/lightingStandards.ts` — types (`TimeIntensityPair`, `LightingSchedule`), the preset schedules (`standardSchedules`), and color-science helpers (`kelvinToHex`, `getColorTemperatureName`). Edit here when adding presets or changing the schedule shape.
-- `src/utils/scheduleGenerator.ts` — pure functions that derive runtime values from a schedule: `generateCustomSchedule` (wake/sleep/sun-times → schedule), `getCurrentLightSettings` (linear interpolation between the two surrounding `TimeIntensityPair` points), `fetchSunTimes`, and time formatters.
+**Server-side auth & authorization (`src/server/auth/`):**
 
-A `LightingSchedule` is a name + description + sorted `TimeIntensityPair[]` (time in 0–24 decimal hours, intensity 0–100%, temperature in Kelvin) + citations. Schedules must include endpoints at `time: 0` and `time: 24`; `generateCustomSchedule` enforces this and de-duplicates by time before returning.
+- `identity.ts` — `requireClerkIdentity()` reads Clerk; `getOrCreateCurrentAppUser()` lazily inserts an `app_users` row on first sight (via `onConflictDoUpdate` to survive concurrent first-seen requests); `requireAppIdentity()` is the standard entry point used by every server action.
+- `authorization.ts` — `canAccessProject` / `assertCanAccessProject` and the predicates `projectAccessWhere(identity)` and `projectIdAccessWhere(projectId, identity)` that you compose into Drizzle `where` clauses. **Org access is intentionally coarse**: any member of the matching Clerk org currently has access to org-owned projects — the file documents this. Add role/membership checks before exposing differentiated org permissions.
+- Authorization rule: **never trust client-supplied owner/org IDs**; always derive ownership from `requireAppIdentity()` on the server (see `features/projects/actions.ts:47`).
 
-**UI layer — shadcn/ui on Tailwind.** `components.json` is configured for the shadcn CLI (`baseColor: slate`, CSS variables, no RSC). Primitives live in `src/components/ui/`; add new ones via the shadcn CLI rather than hand-rolling. Tailwind extends the default palette with a domain palette under `lumify.{blue,amber,neutral}` (see `tailwind.config.ts`).
+**Database (`src/server/db/`):**
 
-**Path alias.** `@/` → `src/` (configured in `vite.config.ts`, `tsconfig.json`, and `components.json`). Use it in imports.
+- `index.ts` — Neon HTTP driver + Drizzle. Throws at import time if `DATABASE_URL` is missing. `import "server-only"` enforces server-only use.
+- `schema.ts` — `app_users`, `projects`, `scenarios`, `roi_snapshots`, `report_snapshots`. Lighting schedules, ROI inputs/assumptions/results, and report payloads are all `jsonb`. Two Postgres enums (`project_type`, `scenario_source`) are sourced from `src/server/domain/constants.ts` (which re-exports `src/domain/constants.ts`) — change the constants there and regenerate migrations.
+- `migrations/` — output of `drizzle-kit generate`. Regenerate after any schema edit; do not hand-edit.
 
-**Lovable dev tagger.** `vite.config.ts` injects `lovable-tagger` only in `mode === 'development'`. Do not remove it from the plugin chain — Lovable's web editor relies on the data attributes it adds.
+**Domain math:**
+
+- `src/utils/lightingStandards.ts` and `src/utils/scheduleGenerator.ts` carry over from the Vite POC and are still the canonical schedule shapes (`TimeIntensityPair`, `LightingSchedule`) and pure functions (`generateCustomSchedule`, `getCurrentLightSettings`, formatters). The `jsonb` snapshot types in `schema.ts` (`LightingScheduleSnapshot`, `LightingExposurePointSnapshot`) mirror these — keep them in sync when extending the schedule shape.
+- `src/utils/scheduleGenerator.ts` still exports `fetchSunTimes` (client-side, sunrise-sunset.org). The server-side equivalent is `src/server/lighting/sunTimes.ts` — it validates with Zod, has a 5s `AbortController` timeout, and converts UTC instants to the requested IANA timezone. **Server actions/queries should use the server version**; the client `fetchSunTimes` is kept for the legacy visualizer components in `src/components/`.
+- `src/domain/roi/` — ROI calculator and assumptions; `assumptionsVersion` is persisted on each `roi_snapshots` row so historical snapshots remain interpretable when assumptions change.
+- `src/server/validation/` — Zod schemas for each feature (project, scenario, roi, report, lighting). Server actions consume these; `src/domain/validation/` mirrors shared shapes for client use.
+
+**UI layer.**
+
+- shadcn primitives in `src/components/ui/` are generated — extend via props/className or rerun the CLI, do not edit in place. `components.json` is configured with `rsc: true` and `baseColor: slate`; shadcn CSS lives at `src/app/globals.css`.
+- Legacy visualizer/calculator/report components from the Vite POC remain in `src/components/` (`LightingSchedule.tsx`, `ScheduleVisualizer.tsx`, `ROICalculator.tsx`, `FinalReport.tsx`, etc.). The Next.js port wraps these inside feature client components (e.g. `features/roi/components/ROICalculatorClient.tsx`). Prefer extending via the feature slice; only touch the legacy components when changing the underlying visualization.
+- Tailwind extends the default palette with a domain palette under `lumify.{blue,amber,neutral}` (`tailwind.config.ts`).
+
+**Path alias.** `@/` → `src/` (configured in `tsconfig.json` and `components.json`). Use it.
 
 ## Conventions
 
-- **TypeScript is intentionally loose.** `tsconfig.json` sets `noImplicitAny: false`, `strictNullChecks: false`, `noUnusedLocals: false`, `noUnusedParameters: false`. Don't tighten these globally without reason; existing code (e.g. `roiData: any` in `Index.tsx`) depends on the loose mode.
-- **ESLint disables `@typescript-eslint/no-unused-vars`** and only warns on `react-refresh/only-export-components`. `npm run lint` is the gate.
-- **shadcn primitives stay untouched.** Treat `src/components/ui/*` as generated; customize via props/className or by re-running the CLI, not by editing in place.
-- **Pure utils in `src/utils/`, side-effecting / Tailwind-merging helpers in `src/lib/utils.ts`** (`cn()` lives there). Don't mix.
+- **TypeScript is intentionally loose** (`strict: false`, `noImplicitAny: false`, `strictNullChecks: false`, `noUnusedLocals/Parameters: false`). Existing code relies on this — don't tighten globally.
+- **ESLint disables `@typescript-eslint/no-unused-vars` and `no-explicit-any`** and only warns on react-hooks rules. `npm run lint` + `npm run typecheck` are the gates.
+- Server-only modules start with `import "server-only"`; server actions start with `"use server"`; client components start with `"use client"`. Adding a server-only file without the marker risks leaking it into a client bundle.
+- After any change to `src/server/db/schema.ts` or `src/server/domain/constants.ts`, run `npm run db:generate` to update `src/server/db/migrations/`.
+- Server actions return `ActionResult<T>`; client components branch on `ok`. Don't throw across the action boundary unless you really want a Next.js error page.
 
-## Known shape gotchas
+## Known gotchas
 
-- `getCurrentLightSettings` assumes the schedule is sorted by `time` ascending and includes points covering the queried hour. `generateCustomSchedule` returns sorted/deduped output; preserve that invariant if you build schedules elsewhere.
-- `fetchSunTimes` returns `null` on error rather than throwing — callers must null-check.
-- The dev server binds to `host: "::"` and port `8080`, not Vite's default. Match that when configuring tunnels or reverse proxies.
+- `getCurrentLightSettings` assumes the schedule is sorted ascending by `time` and includes points covering the queried hour. `generateCustomSchedule` returns sorted/deduped output with endpoints at `time: 0` and `time: 24` — preserve that invariant if you build schedules elsewhere.
+- `fetchSunTimes` (client) returns `null` on error; `fetchSunTimesForLocation` (server) throws. Match the caller's expectation.
+- `(app)/layout.tsx` calls `auth.protect()` even though `proxy.ts` already protects those paths — intentional belt-and-suspenders. Don't remove either.
+- The README and the Lovable project ID in it describe the old Vite SPA. Don't follow its setup steps.
 
+<!-- Beads / agent-profile / session-completion sections below are maintained intentionally;
+     update via the bd setup tooling rather than hand-editing. -->
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
 
 This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
@@ -113,4 +143,3 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - Explicit user or orchestrator instructions override this Beads block.
 - Do not commit or push without clear authority from the active profile or the current user request.
 - If a required sync or push is blocked, stop and report the exact command and error.
-<!-- END BEADS INTEGRATION -->
