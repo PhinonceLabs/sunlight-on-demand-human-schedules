@@ -31,3 +31,6 @@ tsconfig.tsbuildinfo
 .beads-credential-key
 .beads/proxieddb/
 .vercel
+
+# Playwright MCP debug artifacts
+.playwright-mcp/

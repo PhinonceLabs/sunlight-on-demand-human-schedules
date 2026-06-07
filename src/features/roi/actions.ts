@@ -29,74 +29,69 @@ export async function calculateAndSaveRoiSnapshot(
   }
 
   const identity = await requireAppIdentity();
-  const snapshot = await db.transaction(async (tx) => {
-    const project = await tx.query.projects.findFirst({
-      where: projectIdAccessWhere(parsed.data.projectId, identity),
+
+  const project = await db.query.projects.findFirst({
+    where: projectIdAccessWhere(parsed.data.projectId, identity),
+    columns: { id: true },
+  });
+
+  if (!project) {
+    return { ok: false, message: "Project or scenario not found." };
+  }
+
+  if (parsed.data.scenarioId) {
+    const scenario = await db.query.scenarios.findFirst({
+      where: and(
+        eq(scenarios.id, parsed.data.scenarioId),
+        eq(scenarios.projectId, parsed.data.projectId),
+      ),
       columns: { id: true },
     });
 
-    if (!project) {
-      return null;
+    if (!scenario) {
+      return { ok: false, message: "Project or scenario not found." };
     }
+  }
 
-    if (parsed.data.scenarioId) {
-      const scenario = await tx.query.scenarios.findFirst({
-        where: and(
-          eq(scenarios.id, parsed.data.scenarioId),
-          eq(scenarios.projectId, parsed.data.projectId),
-        ),
-        columns: { id: true },
-      });
-
-      if (!scenario) {
-        return null;
-      }
-    }
-
-    const computedSnapshot = roiSnapshotDataSchema.parse({
-      inputs: parsed.data.inputs,
-      assumptionsVersion: ROI_ASSUMPTIONS_VERSION,
-      assumptions: ROI_ASSUMPTIONS,
-      results: calculateRoiRange(parsed.data.inputs),
-    });
-
-    const [createdSnapshot] = await tx
-      .insert(roiSnapshots)
-      .values({
-        projectId: parsed.data.projectId,
-        scenarioId: parsed.data.scenarioId ?? null,
-        inputs: computedSnapshot.inputs,
-        assumptionsVersion: computedSnapshot.assumptionsVersion,
-        assumptions: computedSnapshot.assumptions,
-        results: computedSnapshot.results,
-      })
-      .returning({
-        id: roiSnapshots.id,
-        projectId: roiSnapshots.projectId,
-        scenarioId: roiSnapshots.scenarioId,
-        inputs: roiSnapshots.inputs,
-        assumptionsVersion: roiSnapshots.assumptionsVersion,
-        assumptions: roiSnapshots.assumptions,
-        results: roiSnapshots.results,
-        createdAt: roiSnapshots.createdAt,
-      });
-
-    if (!createdSnapshot) {
-      return null;
-    }
-
-    return {
-      id: createdSnapshot.id,
-      projectId: createdSnapshot.projectId,
-      scenarioId: createdSnapshot.scenarioId,
-      createdAt: createdSnapshot.createdAt.toISOString(),
-      ...computedSnapshot,
-    } satisfies RoiSnapshotDTO;
+  const computedSnapshot = roiSnapshotDataSchema.parse({
+    inputs: parsed.data.inputs,
+    assumptionsVersion: ROI_ASSUMPTIONS_VERSION,
+    assumptions: ROI_ASSUMPTIONS,
+    results: calculateRoiRange(parsed.data.inputs),
   });
 
-  if (!snapshot) {
+  const [createdSnapshot] = await db
+    .insert(roiSnapshots)
+    .values({
+      projectId: parsed.data.projectId,
+      scenarioId: parsed.data.scenarioId ?? null,
+      inputs: computedSnapshot.inputs,
+      assumptionsVersion: computedSnapshot.assumptionsVersion,
+      assumptions: computedSnapshot.assumptions,
+      results: computedSnapshot.results,
+    })
+    .returning({
+      id: roiSnapshots.id,
+      projectId: roiSnapshots.projectId,
+      scenarioId: roiSnapshots.scenarioId,
+      inputs: roiSnapshots.inputs,
+      assumptionsVersion: roiSnapshots.assumptionsVersion,
+      assumptions: roiSnapshots.assumptions,
+      results: roiSnapshots.results,
+      createdAt: roiSnapshots.createdAt,
+    });
+
+  if (!createdSnapshot) {
     return { ok: false, message: "Project or scenario not found." };
   }
+
+  const snapshot: RoiSnapshotDTO = {
+    id: createdSnapshot.id,
+    projectId: createdSnapshot.projectId,
+    scenarioId: createdSnapshot.scenarioId,
+    createdAt: createdSnapshot.createdAt.toISOString(),
+    ...computedSnapshot,
+  };
 
   revalidateRoiPaths(snapshot.projectId, snapshot.scenarioId ?? undefined);
   return { ok: true, data: { snapshot } };

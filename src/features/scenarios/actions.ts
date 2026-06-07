@@ -81,31 +81,28 @@ export async function createScenario(input: unknown): Promise<ActionResult<{ sce
   }
 
   const identity = await requireAppIdentity();
-  const scenario = await db.transaction(async (tx) => {
-    const project = await tx.query.projects.findFirst({
-      where: projectIdAccessWhere(parsed.data.projectId, identity),
-      columns: { id: true },
-    });
 
-    if (!project) {
-      return null;
-    }
-
-    const [createdScenario] = await tx
-      .insert(scenarios)
-      .values({
-        projectId: parsed.data.projectId,
-        name: parsed.data.name,
-        description: parsed.data.description,
-        source: parsed.data.source,
-        presetName: parsed.data.presetName ?? null,
-        schedule: parsed.data.schedule as typeof scenarios.$inferInsert["schedule"],
-        scheduleInputs: (parsed.data.scheduleInputs ?? null) as typeof scenarios.$inferInsert["scheduleInputs"],
-      })
-      .returning({ id: scenarios.id, projectId: scenarios.projectId });
-
-    return createdScenario ?? null;
+  const project = await db.query.projects.findFirst({
+    where: projectIdAccessWhere(parsed.data.projectId, identity),
+    columns: { id: true },
   });
+
+  if (!project) {
+    return { ok: false, message: "Unable to create scenario." };
+  }
+
+  const [scenario] = await db
+    .insert(scenarios)
+    .values({
+      projectId: parsed.data.projectId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      source: parsed.data.source,
+      presetName: parsed.data.presetName ?? null,
+      schedule: parsed.data.schedule as typeof scenarios.$inferInsert["schedule"],
+      scheduleInputs: (parsed.data.scheduleInputs ?? null) as typeof scenarios.$inferInsert["scheduleInputs"],
+    })
+    .returning({ id: scenarios.id, projectId: scenarios.projectId });
 
   if (!scenario) {
     return { ok: false, message: "Unable to create scenario." };
