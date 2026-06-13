@@ -233,7 +233,7 @@ export function ProjectWorkspaceClient({
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <CardTitle>{scenario.name}</CardTitle>
-                <CardDescription className="text-white/85">
+                <CardDescription className="text-primary-foreground/80">
                   {scenario.description || activeSchedule.description}
                 </CardDescription>
               </div>
@@ -241,7 +241,11 @@ export function ProjectWorkspaceClient({
                 <Badge variant="secondary" className="bg-earthlight-paper text-earthlight-ink">
                   {sourceLabel(scenario.source)}
                 </Badge>
-                {scenario.presetName && <Badge className="bg-white/15 text-white">{scenario.presetName}</Badge>}
+                {scenario.presetName && (
+                  <Badge className="bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/20">
+                    {scenario.presetName}
+                  </Badge>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -264,7 +268,7 @@ export function ProjectWorkspaceClient({
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-dashed bg-white/70 text-center shadow-sm backdrop-blur">
+        <Card className="border-dashed bg-card/70 text-center shadow-sm backdrop-blur">
           <CardHeader>
             <CardTitle>No saved scenarios yet</CardTitle>
             <CardDescription>

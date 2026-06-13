@@ -276,7 +276,7 @@ export function ProjectListClient({ projects }: { projects: ProjectSummaryDTO[] 
 
   return (
     <div className="space-y-8">
-      <Card className="bg-white/80 shadow-sm backdrop-blur">
+      <Card className="bg-card/80 shadow-sm backdrop-blur">
         <form onSubmit={handleCreate}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -300,7 +300,7 @@ export function ProjectListClient({ projects }: { projects: ProjectSummaryDTO[] 
       </Card>
 
       {projects.length === 0 ? (
-        <Card className="border-dashed bg-white/70 text-center shadow-sm backdrop-blur">
+        <Card className="border-dashed bg-card/70 text-center shadow-sm backdrop-blur">
           <CardHeader>
             <CardTitle>No projects yet</CardTitle>
             <CardDescription>Create your first authenticated project above.</CardDescription>
